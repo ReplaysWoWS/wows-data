@@ -66,6 +66,13 @@ def iter_subribbons(
             locale.translate(translations, f"IDS_RIBBON_{ids_key}")
             if translations else {}
         )
+        # Legacy id-aligned subribbons (MAIN_CALIBER, TORPEDO, …) have no
+        # `IDS_RIBBON_SUBRIBBON_*` entry — they share their label with the
+        # parent ribbon, so fall back to the ribbon-level key.
+        if not name_i18n and translations:
+            name_i18n = locale.translate(
+                translations, f"IDS_RIBBON_RIBBON_{row['const_name']}"
+            )
         yield SubRibbon(
             id=row["id"],
             const_name=row["const_name"],
