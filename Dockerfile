@@ -1,4 +1,8 @@
-FROM python:3.12-slim
+# Pinned to Debian 12 (bookworm). The unsuffixed `python:3.12-slim` tag now
+# points to trixie, whose apt post-invoke clean script trips up older Docker
+# storage drivers ("Problem executing scripts APT::Update::Post-Invoke …").
+# Bookworm builds cleanly on every Docker we care about.
+FROM python:3.12-slim-bookworm
 
 ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
