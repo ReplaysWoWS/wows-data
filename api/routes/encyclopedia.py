@@ -147,6 +147,19 @@ def _crew_view(doc: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _crew_skill_view(doc: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": doc["id"],
+        "internal_name": doc["internal_name"],
+        "name_i18n": _i18n(doc, "name"),
+        "description_i18n": _i18n(doc, "description"),
+        "tiers": doc.get("tiers", {}),
+        "is_epic": doc.get("is_epic", False),
+        "is_trigger": doc.get("is_trigger", False),
+        "icon": _icon_url(doc["icon"]) if doc.get("icon") else None,
+    }
+
+
 def _battle_type_view(doc: dict[str, Any]) -> dict[str, Any]:
     return {
         "token": doc["token"],
@@ -572,6 +585,45 @@ async def get_crew(
     if doc is None:
         raise HTTPException(404, f"crew {crew_id} not found in {version or 'latest'}")
     return _crew_view(doc)
+
+
+@router.get(
+    "/crew-skills",
+    summary="List commander skills (the perk tree)",
+    description=(
+        "Every entry in the standard 82-skill commander perk tree — the grid "
+        "you see in port when assigning skill points (Preventive Maintenance, "
+        "Concealment Expert, Adrenaline Rush, …). This is the canonical "
+        "encyclopedia, deduped across all commanders.\n\n"
+        "- `id` — the integer `skillType` from GameParams; this is what "
+        "  replay packets and the client use to reference a skill.\n"
+        "- `internal_name` — the GameParams skill key "
+        "  (`PlanesTorpedoUwReduced`, `DetectionVisibilityRange`, …); stable "
+        "  across patches and useful as a join key.\n"
+        "- `tiers` — per-ship-class tier (1–4). The same skill can land in "
+        "  different tiers depending on the class it's mastered on, so this "
+        "  is a dict (`{\"Cruiser\": 4, \"Destroyer\": 4, …}`) rather than a "
+        "  single int. A missing class key means the skill is unavailable on "
+        "  that class.\n"
+        "- `is_epic` — true for the rare 4-point legendary perks.\n"
+        "- `is_trigger` — true for skills the UI renders as an active "
+        "  trigger (consumable-like) rather than a passive bonus.\n"
+        "- `description_i18n` — many skills ship a single space here. That's "
+        "  WG's data; we surface it verbatim."
+    ),
+)
+async def list_crew_skills(
+    version: Annotated[str | None, Query(description=_VERSION_HELP, examples=["15.3.0.0"])] = None,
+) -> dict[str, Any]:
+    resolved = await resolve_version(version)
+    if resolved is None:
+        return {"items": [], "total": 0}
+    db = get_db()
+    query = {"client_version": resolved}
+    total = await db.crew_skills.count_documents(query)
+    cursor = db.crew_skills.find(query, {"_id": 0}).sort("id", 1)
+    items = [_crew_skill_view(doc) async for doc in cursor]
+    return {"items": items, "total": total}
 
 
 @router.get(

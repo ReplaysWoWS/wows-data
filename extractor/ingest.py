@@ -31,6 +31,7 @@ from . import (
     normalize_achievement,
     normalize_battle_type,
     normalize_crew,
+    normalize_crew_skill,
     normalize_nation,
     normalize_ribbon,
     normalize_scripts_enums,
@@ -145,8 +146,8 @@ def _loop(args) -> int:
 
 _PARTITIONED_COLLECTIONS = (
     "ships", "nations", "ship_types", "spaces", "achievements", "crew",
-    "battle_types", "ribbons", "subribbons", "battle_results", "game_modes",
-    "event_scenarios", "achievement_types",
+    "crew_skills", "battle_types", "ribbons", "subribbons", "battle_results",
+    "game_modes", "event_scenarios", "achievement_types",
 )
 
 
@@ -338,6 +339,22 @@ def _run_once(args) -> int:
         crews.append(cr.model_dump(mode="json"))
     print(f"[ingest] normalised {len(crews)} crew")
 
+    crew_skills: list[dict] = []
+    for skill_key, payload in normalize_crew_skill.iter_skill_keys(raw):
+        try:
+            sk = normalize_crew_skill.normalise_crew_skill(skill_key, payload, translations)
+        except (ValidationError, KeyError, ValueError) as e:
+            raise RuntimeError(
+                f"normalisation failed for crew_skill {skill_key!r}: {type(e).__name__}: {e}"
+            ) from e
+        if icons_staging and not args.skip_icons:
+            src = icons.collect_for_crew_skill(icons_staging, skill_key)
+            if src is not None:
+                sk.icon = icons.promote(src, blobs_root)
+                promoted_blobs += 1
+        crew_skills.append(sk.model_dump(mode="json"))
+    print(f"[ingest] normalised {len(crew_skills)} crew skills")
+
     normalize_battle_type.validate_tokens(raw, catalog)
     battle_types: list[dict] = []
     for bt in normalize_battle_type.iter_battle_types(catalog, translations):
@@ -412,6 +429,8 @@ def _run_once(args) -> int:
     db.crew.create_index([("client_version", 1), ("id", 1)], unique=True)
     db.crew.create_index([("client_version", 1), ("index", 1)])
     db.crew.create_index([("client_version", 1), ("nation", 1)])
+    db.crew_skills.create_index([("client_version", 1), ("id", 1)], unique=True)
+    db.crew_skills.create_index([("client_version", 1), ("internal_name", 1)], unique=True)
     db.battle_types.create_index([("client_version", 1), ("token", 1)], unique=True)
     db.ribbons.create_index([("client_version", 1), ("id", 1)], unique=True)
     db.ribbons.create_index([("client_version", 1), ("const_name", 1)])
@@ -500,6 +519,19 @@ def _run_once(args) -> int:
     if crew_ops:
         result = db.crew.bulk_write(crew_ops, ordered=False)
         print(f"[ingest] mongo crew: upserted={result.upserted_count} modified={result.modified_count}")
+
+    crew_skill_ops = []
+    for sk in crew_skills:
+        sk["client_version"] = data_partition
+        sk["extracted_at"] = extracted_at
+        crew_skill_ops.append(UpdateOne(
+            {"client_version": data_partition, "id": sk["id"]},
+            {"$set": sk},
+            upsert=True,
+        ))
+    if crew_skill_ops:
+        result = db.crew_skills.bulk_write(crew_skill_ops, ordered=False)
+        print(f"[ingest] mongo crew_skills: upserted={result.upserted_count} modified={result.modified_count}")
 
     bt_ops = []
     for bt in battle_types:

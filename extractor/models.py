@@ -284,6 +284,42 @@ class Crew(BaseModel):
     portrait: str | None = None
 
 
+class CrewSkill(BaseModel):
+    """One commander skill (perk) from the standard skill tree.
+
+    Skills aren't top-level GameParams entries — they live nested under each
+    Crew's `Skills` block. The 82-skill tree is shared across all commanders
+    (varies in only ~24 distinct payloads; see `normalize_crew.py`), so we
+    dedupe across crews and surface a single canonical encyclopedia.
+
+    `id` is the GameParams `skillType` integer (1..82), which is what the
+    client and replay packets use to identify a skill. `internal_name` is the
+    GameParams key (`PlanesTorpedoUwReduced`, `DetectionVisibilityRange`, …)
+    and is the stable string handle.
+
+    `tiers` is a per-ship-class dict because the same skill can be a
+    different tier depending on the class it's mastered on (e.g. a tier-3
+    cruiser skill may be tier-4 on battleships). Keys are GameParams class
+    names (`Cruiser`, `Destroyer`, `AirCarrier`, `Battleship`, `Submarine`,
+    `Auxiliary`); values are 1..4. Skip keys mean "not available on this
+    class" (no skills in patch 15.x trip this, but the schema admits it).
+
+    Locale: name from `IDS_SKILL_<UPPER_SNAKE(name)>`, description from
+    `IDS_SKILL_DESC_<UPPER_SNAKE(name)>`. WG ships many descriptions blank
+    (`' '`) — we pass them through verbatim rather than null them out."""
+    model_config = ConfigDict(extra="forbid")
+    id: int
+    internal_name: str
+    name: str
+    name_i18n: dict[str, str] = Field(default_factory=dict)
+    description: str = ""
+    description_i18n: dict[str, str] = Field(default_factory=dict)
+    tiers: dict[str, int] = Field(default_factory=dict)
+    is_epic: bool = False
+    is_trigger: bool = False
+    icon: str | None = None
+
+
 class BattleTypeIcons(BaseModel):
     """Battle-mode marker art, four sizes from `gui/service_kit/battle_types/`.
 

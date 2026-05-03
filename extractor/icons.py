@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 import shutil
 from pathlib import Path
 
@@ -180,6 +181,19 @@ def collect_for_crew(staging_root: Path, raw_nation: str, person_name: str) -> P
     if not person_name:
         return None
     p = staging_root / _CREW_PORTRAIT_DIR / raw_nation / f"{person_name}.png"
+    return p if p.is_file() else None
+
+
+_CREW_SKILLS_DIR = "gui/crew_commander/skills"
+
+
+def collect_for_crew_skill(staging_root: Path, skill_key: str) -> Path | None:
+    """Locate the perk icon for one skill, or None if missing.
+
+    Filename is the GameParams skill key in lower-snake form
+    (`PlanesTorpedoUwReduced` → `planes_torpedo_uw_reduced.png`)."""
+    snake = re.sub(r"(?<!^)(?=[A-Z])", "_", skill_key).lower()
+    p = staging_root / _CREW_SKILLS_DIR / f"{snake}.png"
     return p if p.is_file() else None
 
 

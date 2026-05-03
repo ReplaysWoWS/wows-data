@@ -45,6 +45,7 @@ _ICON_PATHS = (
     "gui/maps_bg",
     "gui/achievements",
     "gui/crew_commander/base",
+    "gui/crew_commander/skills",
     "gui/service_kit/battle_types",
     "gui/ribbons",
 )
