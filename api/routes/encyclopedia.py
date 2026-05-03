@@ -251,7 +251,9 @@ async def list_versions() -> dict[str, Any]:
     db = get_db()
     latest = await db.aliases.find_one({"_id": "latest"})
     latest_pt = await db.aliases.find_one({"_id": "latest_pt"})
-    cursor = db.manifests.find({}, {"_id": 0}).sort("extracted_at", -1)
+    cursor = db.manifests.find(
+        {"ready": {"$ne": False}}, {"_id": 0}
+    ).sort("extracted_at", -1)
     items = [
         {
             "client_version": doc["client_version"],
@@ -375,7 +377,7 @@ async def get_ship(
         {"client_version": resolved, "id": ship_id}, {"_id": 0}
     )
     if doc is None:
-        raise HTTPException(404, f"ship {ship_id} not found in {resolved}")
+        raise HTTPException(404, f"ship {ship_id} not found in {version or 'latest'}")
     return _ship_view(doc, language)
 
 
@@ -506,7 +508,7 @@ async def get_achievement(
         {"client_version": resolved, "id": achievement_id}, {"_id": 0}
     )
     if doc is None:
-        raise HTTPException(404, f"achievement {achievement_id} not found in {resolved}")
+        raise HTTPException(404, f"achievement {achievement_id} not found in {version or 'latest'}")
     return _achievement_view(doc, language)
 
 
@@ -578,7 +580,7 @@ async def get_crew(
         {"client_version": resolved, "id": crew_id}, {"_id": 0}
     )
     if doc is None:
-        raise HTTPException(404, f"crew {crew_id} not found in {resolved}")
+        raise HTTPException(404, f"crew {crew_id} not found in {version or 'latest'}")
     return _crew_view(doc, language)
 
 

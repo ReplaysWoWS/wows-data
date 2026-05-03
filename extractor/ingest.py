@@ -143,6 +143,23 @@ def _loop(args) -> int:
         time.sleep(args.interval)
 
 
+_PARTITIONED_COLLECTIONS = (
+    "ships", "nations", "ship_types", "spaces", "achievements", "crew",
+    "battle_types", "ribbons", "subribbons", "battle_results", "game_modes",
+    "event_scenarios", "achievement_types",
+)
+
+
+def _drop_partition(db, partition: str) -> None:
+    """Delete all docs under a data_partition tag across every collection.
+
+    Called after a re-ingest swap to clear the previous (now orphaned)
+    shadow partition. Safe even if some collections are empty for it."""
+    for coll in _PARTITIONED_COLLECTIONS:
+        db[coll].delete_many({"client_version": partition})
+    print(f"[ingest] dropped orphaned partition {partition}")
+
+
 def _record_last_run(*, status: str, version_seen: str | None = None,
                      version_ingested: str | None = None,
                      error: str | None = None) -> None:
@@ -368,6 +385,20 @@ def _run_once(args) -> int:
     client = MongoClient(mongo_url)
     db = client[db_name]
 
+    # Pick a data partition tag for this run. For a fresh version it's just
+    # the version_tag itself. If we're re-ingesting the version that `latest`
+    # currently aliases, write under a shadow tag instead so live readers
+    # keep seeing the previous complete partition until we atomically flip
+    # the alias at the end of this function.
+    alias_id = "latest_pt" if args.pt else "latest"
+    existing_alias = db.aliases.find_one({"_id": alias_id}) or {}
+    previous_partition = existing_alias.get("data_partition") or existing_alias.get("client_version")
+    if existing_alias.get("client_version") == version_tag:
+        data_partition = f"{version_tag}__r{int(time.time())}"
+        print(f"[ingest] re-ingest of live version {version_tag}; staging under {data_partition}")
+    else:
+        data_partition = version_tag
+
     # Each (client_version, id) pair is a unique document. Re-running the
     # ingest replaces the matching docs in place — handy while iterating.
     db.ships.create_index([("client_version", 1), ("id", 1)], unique=True)
@@ -394,10 +425,10 @@ def _run_once(args) -> int:
     extracted_at = datetime.now(timezone.utc).isoformat()
     ops = []
     for ship in ships:
-        ship["client_version"] = version_tag
+        ship["client_version"] = data_partition
         ship["extracted_at"] = extracted_at
         ops.append(UpdateOne(
-            {"client_version": version_tag, "id": ship["id"]},
+            {"client_version": data_partition, "id": ship["id"]},
             {"$set": ship},
             upsert=True,
         ))
@@ -407,10 +438,10 @@ def _run_once(args) -> int:
 
     nation_ops = []
     for nation in nations:
-        nation["client_version"] = version_tag
+        nation["client_version"] = data_partition
         nation["extracted_at"] = extracted_at
         nation_ops.append(UpdateOne(
-            {"client_version": version_tag, "key": nation["key"]},
+            {"client_version": data_partition, "key": nation["key"]},
             {"$set": nation},
             upsert=True,
         ))
@@ -420,10 +451,10 @@ def _run_once(args) -> int:
 
     type_ops = []
     for st in ship_types:
-        st["client_version"] = version_tag
+        st["client_version"] = data_partition
         st["extracted_at"] = extracted_at
         type_ops.append(UpdateOne(
-            {"client_version": version_tag, "key": st["key"]},
+            {"client_version": data_partition, "key": st["key"]},
             {"$set": st},
             upsert=True,
         ))
@@ -433,10 +464,10 @@ def _run_once(args) -> int:
 
     space_ops = []
     for sp in spaces:
-        sp["client_version"] = version_tag
+        sp["client_version"] = data_partition
         sp["extracted_at"] = extracted_at
         space_ops.append(UpdateOne(
-            {"client_version": version_tag, "key": sp["key"]},
+            {"client_version": data_partition, "key": sp["key"]},
             {"$set": sp},
             upsert=True,
         ))
@@ -446,10 +477,10 @@ def _run_once(args) -> int:
 
     ach_ops = []
     for ach in achievements:
-        ach["client_version"] = version_tag
+        ach["client_version"] = data_partition
         ach["extracted_at"] = extracted_at
         ach_ops.append(UpdateOne(
-            {"client_version": version_tag, "id": ach["id"]},
+            {"client_version": data_partition, "id": ach["id"]},
             {"$set": ach},
             upsert=True,
         ))
@@ -459,10 +490,10 @@ def _run_once(args) -> int:
 
     crew_ops = []
     for cr in crews:
-        cr["client_version"] = version_tag
+        cr["client_version"] = data_partition
         cr["extracted_at"] = extracted_at
         crew_ops.append(UpdateOne(
-            {"client_version": version_tag, "id": cr["id"]},
+            {"client_version": data_partition, "id": cr["id"]},
             {"$set": cr},
             upsert=True,
         ))
@@ -472,10 +503,10 @@ def _run_once(args) -> int:
 
     bt_ops = []
     for bt in battle_types:
-        bt["client_version"] = version_tag
+        bt["client_version"] = data_partition
         bt["extracted_at"] = extracted_at
         bt_ops.append(UpdateOne(
-            {"client_version": version_tag, "token": bt["token"]},
+            {"client_version": data_partition, "token": bt["token"]},
             {"$set": bt},
             upsert=True,
         ))
@@ -485,10 +516,10 @@ def _run_once(args) -> int:
 
     rib_ops = []
     for r in ribbons_docs:
-        r["client_version"] = version_tag
+        r["client_version"] = data_partition
         r["extracted_at"] = extracted_at
         rib_ops.append(UpdateOne(
-            {"client_version": version_tag, "id": r["id"]},
+            {"client_version": data_partition, "id": r["id"]},
             {"$set": r},
             upsert=True,
         ))
@@ -498,10 +529,10 @@ def _run_once(args) -> int:
 
     sub_ops = []
     for sr in subribbons_docs:
-        sr["client_version"] = version_tag
+        sr["client_version"] = data_partition
         sr["extracted_at"] = extracted_at
         sub_ops.append(UpdateOne(
-            {"client_version": version_tag, "id": sr["id"]},
+            {"client_version": data_partition, "id": sr["id"]},
             {"$set": sr},
             upsert=True,
         ))
@@ -514,10 +545,10 @@ def _run_once(args) -> int:
             return
         ops = []
         for d in docs:
-            d["client_version"] = version_tag
+            d["client_version"] = data_partition
             d["extracted_at"] = extracted_at
             ops.append(UpdateOne(
-                {"client_version": version_tag, key_field: d[key_field]},
+                {"client_version": data_partition, key_field: d[key_field]},
                 {"$set": d},
                 upsert=True,
             ))
@@ -532,22 +563,42 @@ def _run_once(args) -> int:
     _bulk("event_scenarios",    event_scenarios,    "code")
     _bulk("achievement_types",  achievement_types,  "name")
 
+    # Atomic publish: write the manifest with `ready: True` first (single
+    # doc, atomic), then flip the alias (single doc, atomic). Until both
+    # writes land, readers via `latest` keep seeing the previous partition.
     db.manifests.update_one(
         {"client_version": version_tag},
         {"$set": {
             "client_version": version_tag,
+            "data_partition": data_partition,
             "extracted_at": extracted_at,
             "ship_count": len(ships),
             "is_pt": args.pt,
             "game_id": game_id,
+            "ready": True,
         }},
         upsert=True,
     )
     db.aliases.update_one(
-        {"_id": "latest_pt" if args.pt else "latest"},
-        {"$set": {"client_version": version_tag, "updated_at": extracted_at}},
+        {"_id": alias_id},
+        {"$set": {
+            "client_version": version_tag,
+            "data_partition": data_partition,
+            "updated_at": extracted_at,
+        }},
         upsert=True,
     )
+
+    # Now that the alias points at the new partition, drop the previous one
+    # if it was a shadow we replaced. Best-effort: if cleanup fails, the
+    # orphans are harmless (no manifest, no alias references them) and the
+    # next successful run will retry.
+    if previous_partition and previous_partition != data_partition:
+        still_referenced = db.manifests.count_documents(
+            {"data_partition": previous_partition}
+        )
+        if not still_referenced:
+            _drop_partition(db, previous_partition)
     db.last_run.update_one(
         {"_id": "ingest"},
         {"$set": {
