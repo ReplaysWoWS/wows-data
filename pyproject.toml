@@ -1,0 +1,31 @@
+[project]
+name = "wows-data"
+version = "0.0.1"
+description = "WoWs Encyclopedia API — self-hosted, per-patch history with richer data than the official client exposes"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "motor>=3.6",
+    "pymongo>=4.10",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "wgc-download @ git+https://github.com/Monstrofil/wgc-download.git",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "httpx>=0.27",
+    "ruff>=0.7",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["extractor*", "api*"]
+
+[tool.ruff]
+line-length = 100

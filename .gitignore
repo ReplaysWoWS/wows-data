@@ -1,0 +1,30 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+
+# Local env / secrets
+.env
+.env.local
+.env.*.local
+
+# Pipeline working data — large binary game files
+data/
+downloads/
+*.dspkg
+*.dspkg.part
+GameParams.data
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

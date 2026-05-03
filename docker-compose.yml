@@ -1,0 +1,60 @@
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    # No ports: published — Mongo is reachable only on the compose network
+    # (the api/ingest services hit it via the `mongo` hostname). Add a
+    # `ports:` block here if you need external admin access.
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand('ping').ok"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      MONGO_URL: mongodb://mongo:27017
+      MONGO_DB: wows
+      ICONS_BLOBS_DIR: /app/data/icons/blobs
+    volumes:
+      - ./data:/app/data
+    ports:
+      - "8000:8000"
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # Long-running ingester. Polls wgc-download every INGEST_INTERVAL seconds
+  # and runs the full pipeline only when the live build doesn't match the
+  # `latest` alias in Mongo. For one-shot manual runs, override the command:
+  #   docker compose run --rm ingest python -m extractor.ingest --pt
+  ingest:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      MONGO_URL: mongodb://mongo:27017
+      MONGO_DB: wows
+      ICONS_BLOBS_DIR: /app/data/icons/blobs
+      INGEST_INTERVAL: ${INGEST_INTERVAL:-1800}
+    volumes:
+      - ./data:/app/data
+    command: >
+      sh -c "python -m extractor.ingest --loop --if-newer --interval $${INGEST_INTERVAL}"
+
+volumes:
+  mongo-data:

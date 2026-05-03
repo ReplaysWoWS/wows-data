@@ -1,0 +1,44 @@
+# Version control
+.git
+.gitignore
+.gitattributes
+
+# Local env / secrets
+.env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.tox/
+.coverage
+htmlcov/
+
+# Pipeline working data — large binary game files, never bake into image
+data/
+downloads/
+*.dspkg
+*.dspkg.part
+GameParams.data
+
+# Tests / docs / scripts not needed at runtime
+tests/
+docs/
+*.md
+LICENSE
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# CI
+.github/
