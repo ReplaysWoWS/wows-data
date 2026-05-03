@@ -1,10 +1,3 @@
-# Targets schema 2.4 for compatibility with older docker-compose (1.x).
-# Schema 2.4 supports healthchecks but not the v3-style
-# `depends_on: <svc>: condition: …` block, so we use plain list-form
-# depends_on and rely on `restart: unless-stopped` to handle the case
-# where the api/ingest start before mongo is accepting connections.
-version: "2.4"
-
 services:
   mongo:
     image: mongo:7
@@ -25,15 +18,18 @@ services:
     build: .
     restart: unless-stopped
     depends_on:
-      - mongo
+      mongo:
+        condition: service_healthy
     environment:
       MONGO_URL: mongodb://mongo:27017
       MONGO_DB: wows
       ICONS_BLOBS_DIR: /app/data/icons/blobs
     volumes:
       - ./data:/app/data
+    # API_PORT controls the host port. The container always listens on
+    # 8000 internally; only the host-side mapping is configurable.
     ports:
-      - "8000:8000"
+      - "${API_PORT:-8000}:8000"
     command: uvicorn api.main:app --host 0.0.0.0 --port 8000
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
@@ -45,24 +41,22 @@ services:
   # Long-running ingester. Polls wgc-download every INGEST_INTERVAL seconds
   # and runs the full pipeline only when the live build doesn't match the
   # `latest` alias in Mongo. For one-shot manual runs, override the command:
-  #   docker-compose run --rm ingest python -m extractor.ingest --pt
-  #
-  # The poll interval is hard-coded here for compatibility with old
-  # docker-compose releases that don't understand the `${VAR:-default}`
-  # substitution syntax. Edit the number below if you want a different
-  # cadence.
+  #   docker compose run --rm ingest python -m extractor.ingest --pt
   ingest:
     build: .
     restart: unless-stopped
     depends_on:
-      - mongo
+      mongo:
+        condition: service_healthy
     environment:
       MONGO_URL: mongodb://mongo:27017
       MONGO_DB: wows
       ICONS_BLOBS_DIR: /app/data/icons/blobs
+      INGEST_INTERVAL: ${INGEST_INTERVAL:-1800}
     volumes:
       - ./data:/app/data
-    command: python -m extractor.ingest --loop --if-newer --interval 1800
+    command: >
+      sh -c "python -m extractor.ingest --loop --if-newer --interval $${INGEST_INTERVAL}"
 
 volumes:
   mongo-data:
