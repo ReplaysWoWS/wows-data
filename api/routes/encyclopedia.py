@@ -230,6 +230,46 @@ _LANGUAGE_HELP = (
 
 
 @router.get(
+    "/versions",
+    summary="List ingested game versions",
+    description=(
+        "Tells you which game patch the live data is pinned to, plus every "
+        "patch we have on file.\n\n"
+        "- `current` — version returned when you don't pass `?version=` on "
+        "any other endpoint (i.e. the latest live-server patch we have "
+        "ingested). `null` if the database is empty.\n"
+        "- `current_pt` — same idea for the **public test** server.\n"
+        "- `items` — all ingested patches, newest first. Each entry "
+        "includes the version string, the timestamp it was extracted, the "
+        "WG `game_id`, an `is_pt` flag, and the ship count for that patch.\n\n"
+        "Useful for: pinning a client to a specific patch, showing a "
+        "version selector in a UI, or detecting when a new patch has been "
+        "ingested."
+    ),
+)
+async def list_versions() -> dict[str, Any]:
+    db = get_db()
+    latest = await db.aliases.find_one({"_id": "latest"})
+    latest_pt = await db.aliases.find_one({"_id": "latest_pt"})
+    cursor = db.manifests.find({}, {"_id": 0}).sort("extracted_at", -1)
+    items = [
+        {
+            "client_version": doc["client_version"],
+            "extracted_at": doc.get("extracted_at"),
+            "game_id": doc.get("game_id"),
+            "is_pt": doc.get("is_pt", False),
+            "ship_count": doc.get("ship_count"),
+        }
+        async for doc in cursor
+    ]
+    return {
+        "current": latest["client_version"] if latest else None,
+        "current_pt": latest_pt["client_version"] if latest_pt else None,
+        "items": items,
+    }
+
+
+@router.get(
     "/ships",
     summary="List ships",
     description=(
