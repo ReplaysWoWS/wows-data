@@ -1,3 +1,10 @@
+# Targets schema 2.4 for compatibility with older docker-compose (1.x).
+# Schema 2.4 supports healthchecks but not the v3-style
+# `depends_on: <svc>: condition: …` block, so we use plain list-form
+# depends_on and rely on `restart: unless-stopped` to handle the case
+# where the api/ingest start before mongo is accepting connections.
+version: "2.4"
+
 services:
   mongo:
     image: mongo:7
@@ -18,8 +25,7 @@ services:
     build: .
     restart: unless-stopped
     depends_on:
-      mongo:
-        condition: service_healthy
+      - mongo
     environment:
       MONGO_URL: mongodb://mongo:27017
       MONGO_DB: wows
@@ -39,22 +45,24 @@ services:
   # Long-running ingester. Polls wgc-download every INGEST_INTERVAL seconds
   # and runs the full pipeline only when the live build doesn't match the
   # `latest` alias in Mongo. For one-shot manual runs, override the command:
-  #   docker compose run --rm ingest python -m extractor.ingest --pt
+  #   docker-compose run --rm ingest python -m extractor.ingest --pt
+  #
+  # The poll interval is hard-coded here for compatibility with old
+  # docker-compose releases that don't understand the `${VAR:-default}`
+  # substitution syntax. Edit the number below if you want a different
+  # cadence.
   ingest:
     build: .
     restart: unless-stopped
     depends_on:
-      mongo:
-        condition: service_healthy
+      - mongo
     environment:
       MONGO_URL: mongodb://mongo:27017
       MONGO_DB: wows
       ICONS_BLOBS_DIR: /app/data/icons/blobs
-      INGEST_INTERVAL: ${INGEST_INTERVAL:-1800}
     volumes:
       - ./data:/app/data
-    command: >
-      sh -c "python -m extractor.ingest --loop --if-newer --interval $${INGEST_INTERVAL}"
+    command: python -m extractor.ingest --loop --if-newer --interval 1800
 
 volumes:
   mongo-data:
