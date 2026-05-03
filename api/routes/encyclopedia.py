@@ -51,17 +51,21 @@ def _resolve_ship_icons(icons: dict[str, Any] | None) -> dict[str, Any]:
     return out
 
 
-def _localise(doc: dict[str, Any], field: str, language: str, fallback_key: str) -> str:
-    i18n = doc.get(f"{field}_i18n") or {}
-    return i18n.get(language) or doc.get(field) or doc.get(fallback_key) or ""
+def _i18n(doc: dict[str, Any], field: str) -> dict[str, str]:
+    """Return the per-language translation map for `field`.
+
+    Stored docs already keep translations as `<field>_i18n` dicts; we surface
+    them as-is so callers can pick a language without re-querying the API."""
+    return doc.get(f"{field}_i18n") or {}
 
 
-def _ship_view(doc: dict[str, Any], language: str) -> dict[str, Any]:
+def _ship_view(doc: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": doc["id"],
         "short_id": doc["short_id"],
-        "name": _localise(doc, "name", language, "internal_name"),
-        "description": _localise(doc, "description", language, "internal_name"),
+        "internal_name": doc.get("internal_name"),
+        "name_i18n": _i18n(doc, "name"),
+        "description_i18n": _i18n(doc, "description"),
         "tier": doc["tier"],
         "nation": doc["nation"],
         "type": doc["type"],
@@ -75,28 +79,28 @@ def _ship_view(doc: dict[str, Any], language: str) -> dict[str, Any]:
     }
 
 
-def _nation_view(doc: dict[str, Any], language: str) -> dict[str, Any]:
+def _nation_view(doc: dict[str, Any]) -> dict[str, Any]:
     return {
         "key": doc["key"],
-        "name": _localise(doc, "name", language, "key"),
+        "name_i18n": _i18n(doc, "name"),
         "flags": _resolve_url_map(doc.get("flags")),
     }
 
 
-def _ship_type_view(doc: dict[str, Any], language: str) -> dict[str, Any]:
+def _ship_type_view(doc: dict[str, Any]) -> dict[str, Any]:
     return {
         "key": doc["key"],
-        "name": _localise(doc, "name", language, "key"),
+        "name_i18n": _i18n(doc, "name"),
         "icons": _resolve_url_map(doc.get("icons")),
     }
 
 
-def _achievement_view(doc: dict[str, Any], language: str) -> dict[str, Any]:
+def _achievement_view(doc: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": doc["id"],
         "ui_name": doc["ui_name"],
-        "name": _localise(doc, "name", language, "ui_name"),
-        "description": _localise(doc, "description", language, "ui_name"),
+        "name_i18n": _i18n(doc, "name"),
+        "description_i18n": _i18n(doc, "description"),
         "type": doc["type"],
         "ui_type": doc["ui_type"],
         "nation": doc["nation"],
@@ -114,12 +118,12 @@ def _achievement_view(doc: dict[str, Any], language: str) -> dict[str, Any]:
     }
 
 
-def _crew_view(doc: dict[str, Any], language: str) -> dict[str, Any]:
+def _crew_view(doc: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": doc["id"],
         "index": doc["index"],
         "person_name": doc["person_name"],
-        "name": _localise(doc, "name", language, "person_name"),
+        "name_i18n": _i18n(doc, "name"),
         "nation": doc["nation"],
         "is_unique": doc["is_unique"],
         "is_person": doc["is_person"],
@@ -143,77 +147,76 @@ def _crew_view(doc: dict[str, Any], language: str) -> dict[str, Any]:
     }
 
 
-def _battle_type_view(doc: dict[str, Any], language: str) -> dict[str, Any]:
+def _battle_type_view(doc: dict[str, Any]) -> dict[str, Any]:
     return {
         "token": doc["token"],
         "team_build_type": doc["team_build_type"],
         "internal_name": doc["internal_name"],
         "match_group": doc["match_group"],
         "is_premade": doc["is_premade"],
-        "name": _localise(doc, "name", language, "internal_name"),
-        "description": _localise(doc, "description", language, "internal_name"),
+        "name_i18n": _i18n(doc, "name"),
+        "description_i18n": _i18n(doc, "description"),
         "icons": _resolve_url_map(doc.get("icons")),
     }
 
 
-def _ribbon_view(doc: dict[str, Any], language: str) -> dict[str, Any]:
+def _ribbon_view(doc: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": doc["id"],
         "const_name": doc["const_name"],
         "ids_key": doc["ids_key"],
-        "name": _localise(doc, "name", language, "const_name"),
+        "name_i18n": _i18n(doc, "name"),
         "icon_name": doc["icon_name"],
         "icon": _icon_url(doc["icon"]) if doc.get("icon") else None,
         "subribbon_ids": doc.get("subribbon_ids", []),
     }
 
 
-def _subribbon_view(doc: dict[str, Any], language: str) -> dict[str, Any]:
+def _subribbon_view(doc: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": doc["id"],
         "const_name": doc["const_name"],
         "ids_key": doc["ids_key"],
         "parent_ribbon_id": doc.get("parent_ribbon_id"),
-        "name": _localise(doc, "name", language, "const_name"),
+        "name_i18n": _i18n(doc, "name"),
         "icon_name": doc["icon_name"],
         "icon": _icon_url(doc["icon"]) if doc.get("icon") else None,
     }
 
 
-def _battle_result_view(doc: dict[str, Any], language: str) -> dict[str, Any]:
+def _battle_result_view(doc: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": doc["id"],
-        "name": _localise(doc, "name", language, "name"),
         "code": doc["name"],
+        "name_i18n": _i18n(doc, "name"),
     }
 
 
-def _game_mode_view(doc: dict[str, Any], _language: str) -> dict[str, Any]:
+def _game_mode_view(doc: dict[str, Any]) -> dict[str, Any]:
     return {"id": doc["id"], "name": doc["name"]}
 
 
-def _event_scenario_view(doc: dict[str, Any], language: str) -> dict[str, Any]:
-    label_i18n = doc.get("label_i18n") or {}
+def _event_scenario_view(doc: dict[str, Any]) -> dict[str, Any]:
     return {
         "name": doc["name"],
         "code": doc["code"],
-        "label": label_i18n.get(language) or doc.get("label") or doc["code"],
+        "label_i18n": _i18n(doc, "label"),
     }
 
 
-def _achievement_type_view(doc: dict[str, Any], language: str) -> dict[str, Any]:
+def _achievement_type_view(doc: dict[str, Any]) -> dict[str, Any]:
     return {
         "name": doc["name"],
         "slug": doc["slug"],
-        "label": _localise(doc, "name", language, "name"),
+        "label_i18n": _i18n(doc, "name"),
     }
 
 
-def _space_view(doc: dict[str, Any], language: str) -> dict[str, Any]:
+def _space_view(doc: dict[str, Any]) -> dict[str, Any]:
     return {
         "key": doc["key"],
-        "name": _localise(doc, "name", language, "key"),
-        "description": _localise(doc, "description", language, "key"),
+        "name_i18n": _i18n(doc, "name"),
+        "description_i18n": _i18n(doc, "description"),
         "images": _resolve_url_map(doc.get("images")),
     }
 
@@ -221,11 +224,6 @@ def _space_view(doc: dict[str, Any], language: str) -> dict[str, Any]:
 _VERSION_HELP = (
     "Game patch to query, e.g. `15.3.0.0`. "
     "Omit (or leave blank) to use the latest ingested patch."
-)
-_LANGUAGE_HELP = (
-    "Language for `name` / `description` fields. "
-    "Common values: `en`, `ru`, `de`, `fr`, `es`, `pl`, `cs`, `tr`, `ja`, `zh_sg`. "
-    "Falls back to the internal name when a translation is missing."
 )
 
 
@@ -287,7 +285,6 @@ async def list_versions() -> dict[str, Any]:
 )
 async def list_ships(
     version: Annotated[str | None, Query(description=_VERSION_HELP, examples=["15.3.0.0"])] = None,
-    language: Annotated[str, Query(description=_LANGUAGE_HELP, examples=["en"])] = "en",
     id: Annotated[
         str | None,
         Query(
@@ -350,7 +347,7 @@ async def list_ships(
     db = get_db()
     total = await db.ships.count_documents(query)
     cursor = db.ships.find(query, {"_id": 0}).skip(offset).limit(limit)
-    items = [_ship_view(doc, language) async for doc in cursor]
+    items = [_ship_view(doc) async for doc in cursor]
     return {"items": items, "total": total, "limit": limit, "offset": offset}
 
 
@@ -368,7 +365,6 @@ async def list_ships(
 async def get_ship(
     ship_id: Annotated[int, Path(description="Numeric ship id from `/v1/ships`.", examples=[3553818608])],
     version: Annotated[str | None, Query(description=_VERSION_HELP, examples=["15.3.0.0"])] = None,
-    language: Annotated[str, Query(description=_LANGUAGE_HELP, examples=["en"])] = "en",
 ) -> dict[str, Any]:
     resolved = await resolve_version(version)
     if resolved is None:
@@ -378,7 +374,7 @@ async def get_ship(
     )
     if doc is None:
         raise HTTPException(404, f"ship {ship_id} not found in {version or 'latest'}")
-    return _ship_view(doc, language)
+    return _ship_view(doc)
 
 
 @router.get(
@@ -393,13 +389,12 @@ async def get_ship(
 )
 async def list_nations(
     version: Annotated[str | None, Query(description=_VERSION_HELP, examples=["15.3.0.0"])] = None,
-    language: Annotated[str, Query(description=_LANGUAGE_HELP, examples=["en"])] = "en",
 ) -> dict[str, Any]:
     resolved = await resolve_version(version)
     if resolved is None:
         return {"items": []}
     cursor = get_db().nations.find({"client_version": resolved}, {"_id": 0})
-    return {"items": [_nation_view(doc, language) async for doc in cursor]}
+    return {"items": [_nation_view(doc) async for doc in cursor]}
 
 
 @router.get(
@@ -414,13 +409,12 @@ async def list_nations(
 )
 async def list_ship_types(
     version: Annotated[str | None, Query(description=_VERSION_HELP, examples=["15.3.0.0"])] = None,
-    language: Annotated[str, Query(description=_LANGUAGE_HELP, examples=["en"])] = "en",
 ) -> dict[str, Any]:
     resolved = await resolve_version(version)
     if resolved is None:
         return {"items": []}
     cursor = get_db().ship_types.find({"client_version": resolved}, {"_id": 0})
-    return {"items": [_ship_type_view(doc, language) async for doc in cursor]}
+    return {"items": [_ship_type_view(doc) async for doc in cursor]}
 
 
 @router.get(
@@ -438,7 +432,6 @@ async def list_ship_types(
 )
 async def list_achievements(
     version: Annotated[str | None, Query(description=_VERSION_HELP, examples=["15.3.0.0"])] = None,
-    language: Annotated[str, Query(description=_LANGUAGE_HELP, examples=["en"])] = "en",
     type: Annotated[
         str | None,
         Query(
@@ -487,7 +480,7 @@ async def list_achievements(
     db = get_db()
     total = await db.achievements.count_documents(query)
     cursor = db.achievements.find(query, {"_id": 0}).skip(offset).limit(limit)
-    items = [_achievement_view(doc, language) async for doc in cursor]
+    items = [_achievement_view(doc) async for doc in cursor]
     return {"items": items, "total": total, "limit": limit, "offset": offset}
 
 
@@ -499,7 +492,6 @@ async def list_achievements(
 async def get_achievement(
     achievement_id: Annotated[int, Path(description="Numeric achievement id from `/v1/achievements`.")],
     version: Annotated[str | None, Query(description=_VERSION_HELP, examples=["15.3.0.0"])] = None,
-    language: Annotated[str, Query(description=_LANGUAGE_HELP, examples=["en"])] = "en",
 ) -> dict[str, Any]:
     resolved = await resolve_version(version)
     if resolved is None:
@@ -509,7 +501,7 @@ async def get_achievement(
     )
     if doc is None:
         raise HTTPException(404, f"achievement {achievement_id} not found in {version or 'latest'}")
-    return _achievement_view(doc, language)
+    return _achievement_view(doc)
 
 
 @router.get(
@@ -526,7 +518,6 @@ async def get_achievement(
 )
 async def list_crew(
     version: Annotated[str | None, Query(description=_VERSION_HELP, examples=["15.3.0.0"])] = None,
-    language: Annotated[str, Query(description=_LANGUAGE_HELP, examples=["en"])] = "en",
     nation: Annotated[
         str | None,
         Query(description="Comma-separated nation keys.", examples=["usa,uk"]),
@@ -559,7 +550,7 @@ async def list_crew(
     db = get_db()
     total = await db.crew.count_documents(query)
     cursor = db.crew.find(query, {"_id": 0}).skip(offset).limit(limit)
-    items = [_crew_view(doc, language) async for doc in cursor]
+    items = [_crew_view(doc) async for doc in cursor]
     return {"items": items, "total": total, "limit": limit, "offset": offset}
 
 
@@ -571,7 +562,6 @@ async def list_crew(
 async def get_crew(
     crew_id: Annotated[int, Path(description="Numeric captain id from `/v1/crew`.")],
     version: Annotated[str | None, Query(description=_VERSION_HELP, examples=["15.3.0.0"])] = None,
-    language: Annotated[str, Query(description=_LANGUAGE_HELP, examples=["en"])] = "en",
 ) -> dict[str, Any]:
     resolved = await resolve_version(version)
     if resolved is None:
@@ -581,7 +571,7 @@ async def get_crew(
     )
     if doc is None:
         raise HTTPException(404, f"crew {crew_id} not found in {version or 'latest'}")
-    return _crew_view(doc, language)
+    return _crew_view(doc)
 
 
 @router.get(
@@ -601,13 +591,12 @@ async def get_crew(
 )
 async def list_battle_types(
     version: Annotated[str | None, Query(description=_VERSION_HELP, examples=["15.3.0.0"])] = None,
-    language: Annotated[str, Query(description=_LANGUAGE_HELP, examples=["en"])] = "en",
 ) -> dict[str, Any]:
     resolved = await resolve_version(version)
     if resolved is None:
         return {"items": []}
     cursor = get_db().battle_types.find({"client_version": resolved}, {"_id": 0})
-    return {"items": [_battle_type_view(doc, language) async for doc in cursor]}
+    return {"items": [_battle_type_view(doc) async for doc in cursor]}
 
 
 @router.get(
@@ -628,13 +617,12 @@ async def list_battle_types(
 )
 async def list_ribbons(
     version: Annotated[str | None, Query(description=_VERSION_HELP, examples=["15.3.0.0"])] = None,
-    language: Annotated[str, Query(description=_LANGUAGE_HELP, examples=["en"])] = "en",
 ) -> dict[str, Any]:
     resolved = await resolve_version(version)
     if resolved is None:
         return {"items": []}
     cursor = get_db().ribbons.find({"client_version": resolved}, {"_id": 0}).sort("id", 1)
-    return {"items": [_ribbon_view(doc, language) async for doc in cursor]}
+    return {"items": [_ribbon_view(doc) async for doc in cursor]}
 
 
 @router.get(
@@ -656,7 +644,6 @@ async def list_ribbons(
 )
 async def list_subribbons(
     version: Annotated[str | None, Query(description=_VERSION_HELP, examples=["15.3.0.0"])] = None,
-    language: Annotated[str, Query(description=_LANGUAGE_HELP, examples=["en"])] = "en",
     parent_ribbon_id: Annotated[
         int | None,
         Query(
@@ -672,7 +659,7 @@ async def list_subribbons(
     if parent_ribbon_id is not None:
         query["parent_ribbon_id"] = parent_ribbon_id
     cursor = get_db().subribbons.find(query, {"_id": 0}).sort("id", 1)
-    return {"items": [_subribbon_view(doc, language) async for doc in cursor]}
+    return {"items": [_subribbon_view(doc) async for doc in cursor]}
 
 
 @router.get(
@@ -688,13 +675,12 @@ async def list_subribbons(
 )
 async def list_battle_results(
     version: Annotated[str | None, Query(description=_VERSION_HELP, examples=["15.3.0.0"])] = None,
-    language: Annotated[str, Query(description=_LANGUAGE_HELP, examples=["en"])] = "en",
 ) -> dict[str, Any]:
     resolved = await resolve_version(version)
     if resolved is None:
         return {"items": []}
     cursor = get_db().battle_results.find({"client_version": resolved}, {"_id": 0}).sort("id", 1)
-    return {"items": [_battle_result_view(doc, language) async for doc in cursor]}
+    return {"items": [_battle_result_view(doc) async for doc in cursor]}
 
 
 @router.get(
@@ -716,7 +702,7 @@ async def list_game_modes(
     if resolved is None:
         return {"items": []}
     cursor = get_db().game_modes.find({"client_version": resolved}, {"_id": 0}).sort("id", 1)
-    return {"items": [_game_mode_view(doc, "en") async for doc in cursor]}
+    return {"items": [_game_mode_view(doc) async for doc in cursor]}
 
 
 @router.get(
@@ -729,19 +715,18 @@ async def list_game_modes(
         "- `code` — the id used in battle-results JSON when the match was an "
         "  event op (e.g. `PCVE040`, `Legendary_Battle`).\n"
         "- `name` — the internal constant.\n"
-        "- `label` — the user-facing name (`\"Arctic Convoy\"`), localised "
-        "  via `?language=`."
+        "- `label_i18n` — the user-facing name (`\"Arctic Convoy\"`) as a "
+        "  per-language dict (`{\"en\": ..., \"ru\": ..., \"de\": ..., …}`)."
     ),
 )
 async def list_event_scenarios(
     version: Annotated[str | None, Query(description=_VERSION_HELP, examples=["15.3.0.0"])] = None,
-    language: Annotated[str, Query(description=_LANGUAGE_HELP, examples=["en"])] = "en",
 ) -> dict[str, Any]:
     resolved = await resolve_version(version)
     if resolved is None:
         return {"items": []}
     cursor = get_db().event_scenarios.find({"client_version": resolved}, {"_id": 0}).sort("code", 1)
-    return {"items": [_event_scenario_view(doc, language) async for doc in cursor]}
+    return {"items": [_event_scenario_view(doc) async for doc in cursor]}
 
 
 @router.get(
@@ -756,13 +741,12 @@ async def list_event_scenarios(
 )
 async def list_achievement_types(
     version: Annotated[str | None, Query(description=_VERSION_HELP, examples=["15.3.0.0"])] = None,
-    language: Annotated[str, Query(description=_LANGUAGE_HELP, examples=["en"])] = "en",
 ) -> dict[str, Any]:
     resolved = await resolve_version(version)
     if resolved is None:
         return {"items": []}
     cursor = get_db().achievement_types.find({"client_version": resolved}, {"_id": 0}).sort("slug", 1)
-    return {"items": [_achievement_type_view(doc, language) async for doc in cursor]}
+    return {"items": [_achievement_type_view(doc) async for doc in cursor]}
 
 
 @router.get(
@@ -780,10 +764,9 @@ async def list_achievement_types(
 )
 async def list_spaces(
     version: Annotated[str | None, Query(description=_VERSION_HELP, examples=["15.3.0.0"])] = None,
-    language: Annotated[str, Query(description=_LANGUAGE_HELP, examples=["en"])] = "en",
 ) -> dict[str, Any]:
     resolved = await resolve_version(version)
     if resolved is None:
         return {"items": []}
     cursor = get_db().spaces.find({"client_version": resolved}, {"_id": 0})
-    return {"items": [_space_view(doc, language) async for doc in cursor]}
+    return {"items": [_space_view(doc) async for doc in cursor]}

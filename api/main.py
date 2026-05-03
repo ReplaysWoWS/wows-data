@@ -22,16 +22,17 @@ straight from the game client and refreshed every patch.
 3. `GET /v1/battle-types` — the list of battle modes (Random, Co-op,
    Ranked, Clan Battles, Operations, …).
 
-Every response is plain JSON and every endpoint accepts the same two
-options:
+Every response is plain JSON and every endpoint accepts:
 
 | Query param | What it does | Example |
 |-------------|--------------|---------|
 | `version`   | Pin to a specific patch (e.g. `15.3.0.0`). Omit for the latest patch. | `?version=15.3.0.0` |
-| `language`  | Translate `name` / `description` fields. Defaults to `en`. | `?language=ru` |
 
-Available languages typically include `en`, `ru`, `de`, `fr`, `es`,
-`pl`, `cs`, `tr`, `ja`, `zh_sg` (mirrors what ships in the client).
+Localised text is returned as `<field>_i18n` dicts keyed by language —
+e.g. `name_i18n: {"en": "Yamato", "ru": "Ямато", "de": "Yamato", …}`.
+Pick whichever language you need on the client. Available keys mirror
+the in-game locales: typically `en`, `ru`, `de`, `fr`, `es`, `pl`,
+`cs`, `tr`, `ja`, `zh_sg`.
 
 ### Icons & images
 
