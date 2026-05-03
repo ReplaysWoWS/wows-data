@@ -8,14 +8,22 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-RUN apt-get update \
- && apt-get install -y --no-install-recommends git curl ca-certificates \
- && rm -rf /var/lib/apt/lists/*
+# We deliberately do NOT run `apt-get install` here. Older Docker storage
+# drivers fail apt's post-invoke cleanup, and a few hosts also see GPG
+# verification failures fetching the bookworm InRelease files. The only
+# system tools we used to need from apt were `git` (for pip's git+
+# installer), `curl` (to fetch two release tarballs and the api
+# healthcheck) and `ca-certificates`. All three are replaced below:
+#   - `git` → pip installs wgc-download from a github tarball URL instead.
+#   - `curl` → Python's stdlib `urllib.request` fetches the tarballs;
+#     the healthcheck (in docker-compose.yml) uses `python -c` too.
+#   - `ca-certificates` → `python:3.12-slim-bookworm` already ships
+#     them, and Python uses them by default for HTTPS.
 
 # wowsunpack: reads WG's .idx + .pkg layout and dumps GameParams.data → JSON.
 # Pinned to a known release; bump deliberately when WG changes the format.
 ARG WOWSUNPACK_VERSION=v0.8.0
-RUN curl -fsSL -o /tmp/wowsunpack.tar.gz \
+RUN python -c "import sys, urllib.request; urllib.request.urlretrieve(sys.argv[1], '/tmp/wowsunpack.tar.gz')" \
       "https://github.com/landaire/wowsunpack/releases/download/${WOWSUNPACK_VERSION}/wowsunpack_${WOWSUNPACK_VERSION}_x86_64-unknown-linux-musl.tar.gz" \
  && tar -xzf /tmp/wowsunpack.tar.gz -C /usr/local/bin \
  && chmod +x /usr/local/bin/wowsunpack \
@@ -30,7 +38,7 @@ RUN curl -fsSL -o /tmp/wowsunpack.tar.gz \
 # paths the way the binary expects.
 ARG WOWS_SHELL_VERSION=v0.3.0
 RUN mkdir -p /opt/wows_shell \
- && curl -fsSL -o /tmp/wows_shell.tgz \
+ && python -c "import sys, urllib.request; urllib.request.urlretrieve(sys.argv[1], '/tmp/wows_shell.tgz')" \
       "https://github.com/Monstrofil/wows-sandbox/releases/download/${WOWS_SHELL_VERSION}/wows_shell-linux-x86_64.tar.gz" \
  && tar -xzf /tmp/wows_shell.tgz -C /opt/wows_shell --strip-components=1 \
  && chmod +x /opt/wows_shell/wows_shell \

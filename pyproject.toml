@@ -10,7 +10,9 @@ dependencies = [
     "pymongo>=4.10",
     "pydantic>=2.9",
     "pydantic-settings>=2.6",
-    "wgc-download @ git+https://github.com/Monstrofil/wgc-download.git",
+    # GitHub tarball instead of git+https:// so pip doesn't need a `git`
+    # binary inside the container. Tracks the default branch.
+    "wgc-download @ https://github.com/Monstrofil/wgc-download/archive/refs/heads/master.tar.gz",
 ]
 
 [project.optional-dependencies]
