@@ -482,3 +482,100 @@ class Nation(BaseModel):
     name: str
     name_i18n: dict[str, str] = Field(default_factory=dict)
     flags: NationFlags = Field(default_factory=NationFlags)
+
+
+class Modernization(BaseModel):
+    """One upgrade/modernization from GameParams (`typeinfo.type == "Modernization"`).
+
+    Modernizations are the slot upgrades players bolt onto a ship (Engine Boost
+    Mod 1, Concealment System Mod 1, …). Each carries the integer `id` WG
+    assigns in GameParams, which is what shows up as a `source` in
+    `subtotal_economics` rows in the replay/battle-results stream — the parser
+    looks it up via `GAME_PARAMS_BY_ID` to attribute a modifier to its owning
+    upgrade.
+
+    `slot` is the upgrade slot number (1..6). `ship_restrictions` is the raw
+    list of short_ids the upgrade is mountable on; empty means no restriction.
+    `modifiers` is the verbatim `{modifier_name: factor}` dict the client uses
+    to compute the actual stat changes — surfaced as-is so callers can render
+    the effect text without re-parsing GameParams.
+
+    Locale: title from `IDS_<UPPER_NAME>`, description from
+    `IDS_<UPPER_NAME>_DESCR`."""
+    model_config = ConfigDict(extra="forbid")
+    id: int
+    internal_name: str
+    name: str
+    name_i18n: dict[str, str] = Field(default_factory=dict)
+    description: str = ""
+    description_i18n: dict[str, str] = Field(default_factory=dict)
+    slot: int | None = None
+    group: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    ship_level: list[int] = Field(default_factory=list)
+    ship_restrictions: list[str] = Field(default_factory=list)
+    nation_restrictions: list[str] = Field(default_factory=list)
+    species_restrictions: list[str] = Field(default_factory=list)
+    price_credit: int | None = None
+    price_gold: int | None = None
+    modifiers: dict[str, Any] = Field(default_factory=dict)
+    icon: str | None = None
+
+
+class Exterior(BaseModel):
+    """One exterior item (`typeinfo.type == "Exterior"`).
+
+    Covers signal flags, camouflages, and permoflages — all share the same
+    GameParams type. `kind` is the `typeinfo.species` (`Flags`, `Camouflage`,
+    `Permoflage`) so callers can filter without inspecting the raw payload.
+    The integer `id` is what shows up as a `source` for flag/camo-granted
+    modifiers in the post-battle economy stream.
+
+    `modifiers` is the verbatim `{modifier_name: factor}` dict (e.g.
+    `{"GMShotDelay": 1.05}` for a reload-bonus signal). Surfaced as-is so
+    clients can render the effect without re-parsing GameParams.
+
+    Locale: title from `IDS_<UPPER_NAME>`, description from
+    `IDS_<UPPER_NAME>_DESCR`."""
+    model_config = ConfigDict(extra="forbid")
+    id: int
+    internal_name: str
+    kind: str
+    name: str
+    name_i18n: dict[str, str] = Field(default_factory=dict)
+    description: str = ""
+    description_i18n: dict[str, str] = Field(default_factory=dict)
+    group: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    cost_credits: int | None = None
+    cost_gold: int | None = None
+    modifiers: dict[str, Any] = Field(default_factory=dict)
+    icon: str | None = None
+
+
+class Ability(BaseModel):
+    """One consumable (`typeinfo.type == "Ability"`).
+
+    Damage Control Party, Repair Party, Hydro Acoustic Search, Smoke Generator,
+    Defensive AA Fire, … The integer `id` is what surfaces as a `source` in
+    economy modifier rows whenever a consumable grants a stat bonus.
+
+    Each consumable carries one or more lettered sub-variants (`AbilityList`
+    in GameParams) — different durations / cooldowns for premium vs stock
+    versions — but those don't have their own ids, so we collapse the
+    record around the parent `id` and surface the variants verbatim as
+    `variants` for callers that want them.
+
+    Locale: title from `IDS_DOCK_CONSUME_TITLE_<UPPER_NAME>`,
+    description from `IDS_DOCK_CONSUME_DESCRIPTION_<UPPER_NAME>`."""
+    model_config = ConfigDict(extra="forbid")
+    id: int
+    internal_name: str
+    name: str
+    name_i18n: dict[str, str] = Field(default_factory=dict)
+    description: str = ""
+    description_i18n: dict[str, str] = Field(default_factory=dict)
+    group: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    variants: dict[str, Any] = Field(default_factory=dict)
+    icon: str | None = None

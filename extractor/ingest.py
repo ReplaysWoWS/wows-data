@@ -28,10 +28,13 @@ from . import (
     gameparams,
     icons,
     locale,
+    normalize_ability,
     normalize_achievement,
     normalize_battle_type,
     normalize_crew,
     normalize_crew_skill,
+    normalize_exterior,
+    normalize_modernization,
     normalize_nation,
     normalize_ribbon,
     normalize_scripts_enums,
@@ -148,6 +151,7 @@ _PARTITIONED_COLLECTIONS = (
     "ships", "nations", "ship_types", "spaces", "achievements", "crew",
     "crew_skills", "battle_types", "ribbons", "subribbons", "battle_results",
     "game_modes", "event_scenarios", "achievement_types",
+    "modernizations", "exteriors", "abilities",
 )
 
 
@@ -355,6 +359,39 @@ def _run_once(args) -> int:
         crew_skills.append(sk.model_dump(mode="json"))
     print(f"[ingest] normalised {len(crew_skills)} crew skills")
 
+    modernizations: list[dict] = []
+    for name, entry in normalize_modernization.iter_modernizations(raw):
+        try:
+            mod = normalize_modernization.normalise_modernization(name, entry, translations)
+        except (ValidationError, KeyError, ValueError) as e:
+            raise RuntimeError(
+                f"normalisation failed for modernization {name!r}: {type(e).__name__}: {e}"
+            ) from e
+        modernizations.append(mod.model_dump(mode="json"))
+    print(f"[ingest] normalised {len(modernizations)} modernizations")
+
+    exteriors: list[dict] = []
+    for name, entry in normalize_exterior.iter_exteriors(raw):
+        try:
+            ex = normalize_exterior.normalise_exterior(name, entry, translations)
+        except (ValidationError, KeyError, ValueError) as e:
+            raise RuntimeError(
+                f"normalisation failed for exterior {name!r}: {type(e).__name__}: {e}"
+            ) from e
+        exteriors.append(ex.model_dump(mode="json"))
+    print(f"[ingest] normalised {len(exteriors)} exteriors")
+
+    abilities: list[dict] = []
+    for name, entry in normalize_ability.iter_abilities(raw):
+        try:
+            ab = normalize_ability.normalise_ability(name, entry, translations)
+        except (ValidationError, KeyError, ValueError) as e:
+            raise RuntimeError(
+                f"normalisation failed for ability {name!r}: {type(e).__name__}: {e}"
+            ) from e
+        abilities.append(ab.model_dump(mode="json"))
+    print(f"[ingest] normalised {len(abilities)} abilities")
+
     normalize_battle_type.validate_tokens(raw, catalog)
     battle_types: list[dict] = []
     for bt in normalize_battle_type.iter_battle_types(catalog, translations):
@@ -440,6 +477,12 @@ def _run_once(args) -> int:
     db.game_modes.create_index([("client_version", 1), ("id", 1)], unique=True)
     db.event_scenarios.create_index([("client_version", 1), ("code", 1)], unique=True)
     db.achievement_types.create_index([("client_version", 1), ("name", 1)], unique=True)
+    db.modernizations.create_index([("client_version", 1), ("id", 1)], unique=True)
+    db.modernizations.create_index([("client_version", 1), ("internal_name", 1)])
+    db.exteriors.create_index([("client_version", 1), ("id", 1)], unique=True)
+    db.exteriors.create_index([("client_version", 1), ("kind", 1)])
+    db.abilities.create_index([("client_version", 1), ("id", 1)], unique=True)
+    db.abilities.create_index([("client_version", 1), ("internal_name", 1)])
 
     extracted_at = datetime.now(timezone.utc).isoformat()
     ops = []
@@ -594,6 +637,9 @@ def _run_once(args) -> int:
     _bulk("game_modes",         game_modes,         "id")
     _bulk("event_scenarios",    event_scenarios,    "code")
     _bulk("achievement_types",  achievement_types,  "name")
+    _bulk("modernizations",     modernizations,     "id")
+    _bulk("exteriors",          exteriors,          "id")
+    _bulk("abilities",          abilities,          "id")
 
     # Atomic publish: write the manifest with `ready: True` first (single
     # doc, atomic), then flip the alias (single doc, atomic). Until both

@@ -225,6 +225,55 @@ def _achievement_type_view(doc: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _modernization_view(doc: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": doc["id"],
+        "internal_name": doc["internal_name"],
+        "name_i18n": _i18n(doc, "name"),
+        "description_i18n": _i18n(doc, "description"),
+        "slot": doc.get("slot"),
+        "group": doc.get("group"),
+        "tags": doc.get("tags", []),
+        "ship_level": doc.get("ship_level", []),
+        "ship_restrictions": doc.get("ship_restrictions", []),
+        "nation_restrictions": doc.get("nation_restrictions", []),
+        "species_restrictions": doc.get("species_restrictions", []),
+        "price_credit": doc.get("price_credit"),
+        "price_gold": doc.get("price_gold"),
+        "modifiers": doc.get("modifiers", {}),
+        "icon": _icon_url(doc["icon"]) if doc.get("icon") else None,
+    }
+
+
+def _exterior_view(doc: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": doc["id"],
+        "internal_name": doc["internal_name"],
+        "kind": doc["kind"],
+        "name_i18n": _i18n(doc, "name"),
+        "description_i18n": _i18n(doc, "description"),
+        "group": doc.get("group"),
+        "tags": doc.get("tags", []),
+        "cost_credits": doc.get("cost_credits"),
+        "cost_gold": doc.get("cost_gold"),
+        "modifiers": doc.get("modifiers", {}),
+        "icon": _icon_url(doc["icon"]) if doc.get("icon") else None,
+    }
+
+
+def _ability_view(doc: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": doc["id"],
+        "internal_name": doc["internal_name"],
+        "name_i18n": _i18n(doc, "name"),
+        "description_i18n": _i18n(doc, "description"),
+        "group": doc.get("group"),
+        "tags": doc.get("tags", []),
+        "variants": doc.get("variants", {}),
+        "icon": _icon_url(doc["icon"]) if doc.get("icon") else None,
+    }
+
+
 def _space_view(doc: dict[str, Any]) -> dict[str, Any]:
     return {
         "key": doc["key"],
@@ -822,3 +871,172 @@ async def list_spaces(
         return {"items": []}
     cursor = get_db().spaces.find({"client_version": resolved}, {"_id": 0})
     return {"items": [_space_view(doc) async for doc in cursor]}
+
+
+@router.get(
+    "/modernizations",
+    summary="List upgrades / modernizations",
+    description=(
+        "Every slot upgrade (Modernization) in the patch — Engine Boost "
+        "Mod 1, Concealment System Mod 1, Main Battery Mod 2, etc. Each "
+        "entry carries the integer `id` WG assigns in GameParams; that is "
+        "the same id that shows up as a `source` in `subtotal_economics` "
+        "rows in the post-battle replay/battle-results stream, which is "
+        "how the parser attributes a modifier to its owning upgrade.\n\n"
+        "`modifiers` is the verbatim `{modifier_name: factor}` dict the "
+        "client uses to compute the stat changes (e.g. "
+        "`{\"GMShotDelay\": 0.88}` for a -12% reload upgrade)."
+    ),
+)
+async def list_modernizations(
+    version: Annotated[str | None, Query(description=_VERSION_HELP, examples=["15.3.0.0"])] = None,
+    slot: Annotated[
+        int | None,
+        Query(description="Filter to a single upgrade slot (1..6).", examples=[1]),
+    ] = None,
+    limit: Annotated[
+        int,
+        Query(ge=1, le=_MAX_LIMIT, description=f"Maximum items to return (1–{_MAX_LIMIT})."),
+    ] = _MAX_LIMIT,
+    offset: Annotated[
+        int,
+        Query(ge=0, description="Number of items to skip — use with `limit` for pagination."),
+    ] = 0,
+) -> dict[str, Any]:
+    resolved = await resolve_version(version)
+    if resolved is None:
+        return {"items": [], "total": 0, "limit": limit, "offset": offset}
+    query: dict[str, Any] = {"client_version": resolved}
+    if slot is not None:
+        query["slot"] = slot
+    db = get_db()
+    total = await db.modernizations.count_documents(query)
+    cursor = db.modernizations.find(query, {"_id": 0}).sort("id", 1).skip(offset).limit(limit)
+    items = [_modernization_view(doc) async for doc in cursor]
+    return {"items": items, "total": total, "limit": limit, "offset": offset}
+
+
+@router.get(
+    "/exteriors",
+    summary="List exteriors (signal flags, camouflages, permoflages)",
+    description=(
+        "Every Exterior in the patch — signal flags (`Flags`), regular "
+        "camouflages (`Camouflage`), and permanent ship skins "
+        "(`Permoflage`). Filter with `?kind=Flags` to narrow to one "
+        "family. The integer `id` is the same id surfaced as a `source` "
+        "in `subtotal_economics` rows when a flag or camo granted a "
+        "stat bonus."
+    ),
+)
+async def list_exteriors(
+    version: Annotated[str | None, Query(description=_VERSION_HELP, examples=["15.3.0.0"])] = None,
+    kind: Annotated[
+        str | None,
+        Query(
+            description="Filter by exterior family (`Flags`, `Camouflage`, `Permoflage`).",
+            examples=["Flags"],
+        ),
+    ] = None,
+    limit: Annotated[
+        int,
+        Query(ge=1, le=_MAX_LIMIT, description=f"Maximum items to return (1–{_MAX_LIMIT})."),
+    ] = _MAX_LIMIT,
+    offset: Annotated[
+        int,
+        Query(ge=0, description="Number of items to skip — use with `limit` for pagination."),
+    ] = 0,
+) -> dict[str, Any]:
+    resolved = await resolve_version(version)
+    if resolved is None:
+        return {"items": [], "total": 0, "limit": limit, "offset": offset}
+    query: dict[str, Any] = {"client_version": resolved}
+    if kind is not None:
+        query["kind"] = kind
+    db = get_db()
+    total = await db.exteriors.count_documents(query)
+    cursor = db.exteriors.find(query, {"_id": 0}).sort("id", 1).skip(offset).limit(limit)
+    items = [_exterior_view(doc) async for doc in cursor]
+    return {"items": items, "total": total, "limit": limit, "offset": offset}
+
+
+@router.get(
+    "/abilities",
+    summary="List consumables (abilities)",
+    description=(
+        "Every consumable players can mount — Damage Control Party, "
+        "Repair Party, Hydro Acoustic Search, Smoke Generator, Defensive "
+        "AA Fire, Spotter / Catapult Fighter, etc. The integer `id` is "
+        "the parent GameParams id, which is what surfaces as a `source` "
+        "in `subtotal_economics` rows when a consumable granted a "
+        "modifier. Lettered sub-variants (different durations/cooldowns "
+        "for stock vs premium versions) don't have their own ids and "
+        "are surfaced verbatim under `variants`."
+    ),
+)
+async def list_abilities(
+    version: Annotated[str | None, Query(description=_VERSION_HELP, examples=["15.3.0.0"])] = None,
+    limit: Annotated[
+        int,
+        Query(ge=1, le=_MAX_LIMIT, description=f"Maximum items to return (1–{_MAX_LIMIT})."),
+    ] = _MAX_LIMIT,
+    offset: Annotated[
+        int,
+        Query(ge=0, description="Number of items to skip — use with `limit` for pagination."),
+    ] = 0,
+) -> dict[str, Any]:
+    resolved = await resolve_version(version)
+    if resolved is None:
+        return {"items": [], "total": 0, "limit": limit, "offset": offset}
+    query = {"client_version": resolved}
+    db = get_db()
+    total = await db.abilities.count_documents(query)
+    cursor = db.abilities.find(query, {"_id": 0}).sort("id", 1).skip(offset).limit(limit)
+    items = [_ability_view(doc) async for doc in cursor]
+    return {"items": items, "total": total, "limit": limit, "offset": offset}
+
+
+_MODIFIER_SOURCE_LOOKUP = (
+    # (kind, collection, id_field, view_fn). Order matters: the resolver
+    # returns the first hit, and overlap between collections is not expected
+    # in WG's id space but we probe the densest types first anyway.
+    ("modernization", "modernizations", "id", _modernization_view),
+    ("exterior",      "exteriors",      "id", _exterior_view),
+    ("ability",       "abilities",      "id", _ability_view),
+    ("ship",          "ships",          "id", _ship_view),
+    ("crew",          "crew",           "id", _crew_view),
+    ("achievement",   "achievements",   "id", _achievement_view),
+)
+
+
+@router.get(
+    "/modifier-sources/{source_id}",
+    summary="Resolve a GameParams id to its owning entity",
+    description=(
+        "Given a numeric `source` id from `subtotal_economics` in a replay "
+        "or battle-results payload, return the GameParams entity that "
+        "granted the modifier — typically a modernization, exterior "
+        "(signal/camo/permoflage) or consumable, occasionally a ship, "
+        "commander or achievement.\n\n"
+        "The response `kind` field tells you which entity type was hit "
+        "(`modernization` / `exterior` / `ability` / `ship` / `crew` / "
+        "`achievement`); the remaining fields match the corresponding "
+        "list endpoint's view. Returns 404 when no entity in the patch "
+        "carries that id — WG does occasionally reassign ids between "
+        "patches, so pin to `(version, id)` if you're caching."
+    ),
+)
+async def resolve_modifier_source(
+    source_id: Annotated[int, Path(description="Numeric `source` id from the replay/battle-results stream.", examples=[4281331632])],
+    version: Annotated[str | None, Query(description=_VERSION_HELP, examples=["15.3.0.0"])] = None,
+) -> dict[str, Any]:
+    resolved = await resolve_version(version)
+    if resolved is None:
+        raise HTTPException(404, "no patch ingested yet")
+    db = get_db()
+    for kind, coll, id_field, view_fn in _MODIFIER_SOURCE_LOOKUP:
+        doc = await db[coll].find_one(
+            {"client_version": resolved, id_field: source_id}, {"_id": 0}
+        )
+        if doc is not None:
+            return {"kind": kind, **view_fn(doc)}
+    raise HTTPException(404, f"no entity with id {source_id} in {version or 'latest'}")
