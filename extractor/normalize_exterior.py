@@ -6,7 +6,8 @@ only by `typeinfo.species` (`Flags`, `Camouflage`, `Permoflage`). The integer
 rows for flag/camo-granted bonuses; that's the join key the replay parser
 resolves via `GAME_PARAMS_BY_ID`.
 
-Locale convention is `IDS_<UPPER(name)>` / `IDS_<UPPER(name)>_DESCR`.
+Locale convention is `IDS_<UPPER(name)>` / `IDS_<UPPER(name)>_DESCRIPTION`
+(e.g. `IDS_PCEF005_SM_SIGNALFLAG` / `IDS_PCEF005_SM_SIGNALFLAG_DESCRIPTION`).
 """
 from __future__ import annotations
 
@@ -40,7 +41,7 @@ def normalise_exterior(
 ) -> Exterior:
     key_upper = internal_name.upper()
     name_i18n = locale.translate(translations or {}, f"IDS_{key_upper}")
-    desc_i18n = locale.translate(translations or {}, f"IDS_{key_upper}_DESCR")
+    desc_i18n = locale.translate(translations or {}, f"IDS_{key_upper}_DESCRIPTION")
 
     species = (raw.get("typeinfo") or {}).get("species") or "Unknown"
 

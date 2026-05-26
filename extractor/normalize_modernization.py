@@ -5,9 +5,10 @@ Modernizations are slot upgrades (Engine Boost Mod 1, Concealment System Mod 1,
 post-battle `subtotal_economics` stream when an upgrade granted a modifier;
 that's the join key the replay parser uses via `GAME_PARAMS_BY_ID`.
 
-Locale convention is `IDS_<UPPER(name)>` / `IDS_<UPPER(name)>_DESCR`. WG uses
-the GameParams record key (`PCM001_DamageControl_Mod_I`) as-is for the
-uppercase form.
+Locale convention is `IDS_TITLE_<UPPER(name)>` / `IDS_DESC_<UPPER(name)>`.
+WG uses the GameParams record key (`PCM027_ConcealmentMeasures_Mod_I`) as-is
+for the uppercase form
+(`IDS_TITLE_PCM027_CONCEALMENTMEASURES_MOD_I`).
 """
 from __future__ import annotations
 
@@ -40,8 +41,8 @@ def normalise_modernization(
     translations: dict[str, dict[str, str]] | None = None,
 ) -> Modernization:
     key_upper = internal_name.upper()
-    name_i18n = locale.translate(translations or {}, f"IDS_{key_upper}")
-    desc_i18n = locale.translate(translations or {}, f"IDS_{key_upper}_DESCR")
+    name_i18n = locale.translate(translations or {}, f"IDS_TITLE_{key_upper}")
+    desc_i18n = locale.translate(translations or {}, f"IDS_DESC_{key_upper}")
 
     slot_raw = raw.get("slot")
     slot = int(slot_raw) if isinstance(slot_raw, (int, float)) else None
