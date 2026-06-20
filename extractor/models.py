@@ -510,7 +510,9 @@ class Modernization(BaseModel):
     description: str = ""
     description_i18n: dict[str, str] = Field(default_factory=dict)
     slot: int | None = None
-    group: str | list[str] | None = None
+    # WG is inconsistent about this field's type (string, list, or int across
+    # different items) and we don't consume it — keep it pass-through as-is.
+    group: Any = None
     tags: list[str] = Field(default_factory=list)
     ship_level: list[int] = Field(default_factory=list)
     ship_restrictions: list[str] = Field(default_factory=list)
@@ -545,7 +547,9 @@ class Exterior(BaseModel):
     name_i18n: dict[str, str] = Field(default_factory=dict)
     description: str = ""
     description_i18n: dict[str, str] = Field(default_factory=dict)
-    group: str | list[str] | None = None
+    # WG is inconsistent about this field's type (string, list, or int across
+    # different items) and we don't consume it — keep it pass-through as-is.
+    group: Any = None
     tags: list[str] = Field(default_factory=list)
     cost_credits: int | None = None
     cost_gold: int | None = None
@@ -575,7 +579,9 @@ class Ability(BaseModel):
     name_i18n: dict[str, str] = Field(default_factory=dict)
     description: str = ""
     description_i18n: dict[str, str] = Field(default_factory=dict)
-    group: str | list[str] | None = None
+    # WG is inconsistent about this field's type (string, list, or int across
+    # different items) and we don't consume it — keep it pass-through as-is.
+    group: Any = None
     tags: list[str] = Field(default_factory=list)
     variants: dict[str, Any] = Field(default_factory=dict)
     icon: str | None = None
