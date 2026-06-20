@@ -98,26 +98,34 @@ def _content_build(game_id: str, resource: str, _catalog_build: int) -> int:
     refresh without re-packing the client). When that happens the catalog build
     (e.g. 12700454) no longer equals the build embedded in the dspkg's internal
     paths (e.g. bin/12668706/...), so filters built from the catalog build match
-    zero files. Read the real build straight from the archive's file index via
+    zero files. Read the real build straight from the archive itself via
     `--list` — cheap (range requests, no full download).
+
+    The archive can hold more than one `bin/<build>/` dir (an older base build
+    lingers next to the current one, e.g. 12506899 alongside 12668706). The
+    authoritative build is the one stamped in the dspkg filename
+    (`wows.ww_15.5.0.0.12668706_client.dspkg`); we parse that, and only fall
+    back to the newest `bin/<build>/` dir if the name isn't in the listing.
 
     `_catalog_build` is only a cache key: it changes every patch so the lru_cache
     re-resolves on a new version (important in --loop mode where game_id is
     constant). The returned value comes from the archive listing, not this arg.
     """
     output = _run(["wgc-download", "extract", game_id, resource, "--list"])
+    # Authoritative: the build stamped in the dspkg name, e.g.
+    # `wows.ww_15.5.0.0.12668706_client.dspkg`.
+    name_match = re.search(r"\.(\d+)_\w+\.dspkg\b", output)
+    if name_match:
+        return int(name_match.group(1))
+    # Fallback: newest bin/<build>/ dir present in the file index.
     builds = {int(b) for b in re.findall(r"\bbin/(\d+)/", output)}
     if not builds:
         raise RuntimeError(
-            f"could not find a bin/<build>/ path in the {resource!r} archive "
-            f"listing for {game_id}:\n{output}"
+            f"could not determine the content build for the {resource!r} "
+            f"archive of {game_id} (no dspkg name or bin/<build>/ path in "
+            f"--list output):\n{output}"
         )
-    if len(builds) > 1:
-        raise RuntimeError(
-            f"ambiguous build dirs in {resource!r} archive listing for "
-            f"{game_id}: {sorted(builds)}"
-        )
-    return builds.pop()
+    return max(builds)
 
 
 def extract_locales(version: Version, game_id: str, dest: Path) -> Path:
