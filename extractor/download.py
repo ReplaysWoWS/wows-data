@@ -19,6 +19,7 @@ from __future__ import annotations
 import re
 import subprocess
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 
 LIVE_GAME_ID = "WOWS.WW.PRODUCTION"
@@ -88,17 +89,49 @@ def latest_version(game_id: str = LIVE_GAME_ID) -> Version:
     return Version(client_version=cv, build=int(build))
 
 
+@lru_cache(maxsize=None)
+def _content_build(game_id: str, resource: str, _catalog_build: int) -> int:
+    """Discover the `bin/<build>/` dir used *inside* a resource archive.
+
+    `wgc-download list` reports the launcher *catalog* build, which Wargaming
+    sometimes bumps ahead of the actual content package (a launcher metadata
+    refresh without re-packing the client). When that happens the catalog build
+    (e.g. 12700454) no longer equals the build embedded in the dspkg's internal
+    paths (e.g. bin/12668706/...), so filters built from the catalog build match
+    zero files. Read the real build straight from the archive's file index via
+    `--list` — cheap (range requests, no full download).
+
+    `_catalog_build` is only a cache key: it changes every patch so the lru_cache
+    re-resolves on a new version (important in --loop mode where game_id is
+    constant). The returned value comes from the archive listing, not this arg.
+    """
+    output = _run(["wgc-download", "extract", game_id, resource, "--list"])
+    builds = {int(b) for b in re.findall(r"\bbin/(\d+)/", output)}
+    if not builds:
+        raise RuntimeError(
+            f"could not find a bin/<build>/ path in the {resource!r} archive "
+            f"listing for {game_id}:\n{output}"
+        )
+    if len(builds) > 1:
+        raise RuntimeError(
+            f"ambiguous build dirs in {resource!r} archive listing for "
+            f"{game_id}: {sorted(builds)}"
+        )
+    return builds.pop()
+
+
 def extract_locales(version: Version, game_id: str, dest: Path) -> Path:
     """Pull every `texts/<lang>/LC_MESSAGES/global.mo` from the locale dspkg.
 
     Returns the directory containing the per-language subfolders. ~30 MB."""
     dest.mkdir(parents=True, exist_ok=True)
+    build = _content_build(game_id, "locale", version.build)
     _run([
         "wgc-download", "extract", game_id, "locale",
-        "--filter", f"bin/{version.build}/res/texts/*/LC_MESSAGES/global.mo",
+        "--filter", f"bin/{build}/res/texts/*/LC_MESSAGES/global.mo",
         "-d", str(dest),
     ])
-    texts_dir = dest / "bin" / str(version.build) / "res" / "texts"
+    texts_dir = dest / "bin" / str(build) / "res" / "texts"
     if not texts_dir.exists():
         raise RuntimeError(f"locale extraction produced no texts dir at {texts_dir}")
     return texts_dir
@@ -113,13 +146,14 @@ def extract_gameparams(version: Version, game_id: str, dest: Path) -> Path:
       3. wowsunpack extract content/GameParams.data → raw bytes on disk
     """
     dest.mkdir(parents=True, exist_ok=True)
-    idx_dir = dest / "bin" / str(version.build) / "idx"
+    build = _content_build(game_id, "client", version.build)
+    idx_dir = dest / "bin" / str(build) / "idx"
     pkg_dir = dest / "res_packages"
     raw_dir = dest / "raw"
 
     _run([
         "wgc-download", "extract", game_id, "client",
-        "--filter", f"bin/{version.build}/idx/*.idx",
+        "--filter", f"bin/{build}/idx/*.idx",
         "-d", str(dest),
     ])
     _run([
@@ -165,7 +199,8 @@ def extract_scripts_enums(
     automatically — no manual step.
     """
     dest.mkdir(parents=True, exist_ok=True)
-    scripts_zip_rel = f"bin/{version.build}/res/scripts.zip"
+    build = _content_build(game_id, "client", version.build)
+    scripts_zip_rel = f"bin/{build}/res/scripts.zip"
     _run([
         "wgc-download", "extract", game_id, "client",
         scripts_zip_rel,
@@ -214,7 +249,8 @@ def extract_icons(version: Version, game_id: str, dest: Path) -> Path:
     the caller promotes into the content-addressed blob store.
     """
     dest.mkdir(parents=True, exist_ok=True)
-    idx_dir = dest / "bin" / str(version.build) / "idx"
+    build = _content_build(game_id, "client", version.build)
+    idx_dir = dest / "bin" / str(build) / "idx"
     pkg_dir = dest / "res_packages"
     staging = dest / "icons-staging"
 
@@ -222,7 +258,7 @@ def extract_icons(version: Version, game_id: str, dest: Path) -> Path:
     # already pulled all idx files. Fetching it again is cheap (~few MB).
     _run([
         "wgc-download", "extract", game_id, "client",
-        "--filter", f"bin/{version.build}/idx/gui.idx",
+        "--filter", f"bin/{build}/idx/gui.idx",
         "-d", str(dest),
     ])
     _run([
