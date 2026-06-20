@@ -24,7 +24,7 @@ RUN curl -fsSL -o /tmp/wowsunpack.tar.gz \
 # bump when WG changes the obfuscation scheme. Lives at /opt/wows_shell so
 # the binary, helpers/, and any user-supplied script all resolve relative
 # paths the way the binary expects.
-ARG WOWS_SHELL_VERSION=v0.3.0
+ARG WOWS_SHELL_VERSION=v0.5.0
 RUN mkdir -p /opt/wows_shell \
  && curl -fsSL -o /tmp/wows_shell.tgz \
       "https://github.com/Monstrofil/wows-sandbox/releases/download/${WOWS_SHELL_VERSION}/wows_shell-linux-x86_64.tar.gz" \
