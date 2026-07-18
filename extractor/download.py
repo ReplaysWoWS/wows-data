@@ -112,19 +112,23 @@ def _content_build(game_id: str, resource: str, _catalog_build: int) -> int:
     constant). The returned value comes from the archive listing, not this arg.
     """
     output = _run(["wgc-download", "extract", game_id, resource, "--list"])
-    # Authoritative: the build stamped in the dspkg name, e.g.
-    # `wows.ww_15.5.0.0.12668706_client.dspkg`.
-    name_match = re.search(r"\.(\d+)_\w+\.dspkg\b", output)
-    if name_match:
-        return int(name_match.group(1))
-    # Fallback: newest bin/<build>/ dir present in the file index.
     builds = {int(b) for b in re.findall(r"\bbin/(\d+)/", output)}
     if not builds:
         raise RuntimeError(
             f"could not determine the content build for the {resource!r} "
-            f"archive of {game_id} (no dspkg name or bin/<build>/ path in "
-            f"--list output):\n{output}"
+            f"archive of {game_id} (no bin/<build>/ path in --list output):"
+            f"\n{output}"
         )
+    # Preferred: the build stamped in the dspkg name, e.g.
+    # `wows.ww_15.5.0.0.12668706_client.dspkg` — but only when it names a dir
+    # that is really in there. WG bumps the package name without re-packing
+    # (15.6.0.0's locale dspkg was named ...12866372 while holding only
+    # bin/12668706 and bin/12830008), and a name that matches nothing would
+    # build a filter matching zero files.
+    name_match = re.search(r"\.(\d+)_\w+\.dspkg\b", output)
+    if name_match and int(name_match.group(1)) in builds:
+        return int(name_match.group(1))
+    # Otherwise the newest bin/<build>/ dir present in the file index.
     return max(builds)
 
 
@@ -136,12 +140,15 @@ def _locale_texts_prefix(game_id: str, _catalog_build: int) -> str:
     """Find the in-archive dir holding the per-language text dirs.
 
     The locale archive nests its texts under `bin/<build>/res/texts/`, but that
-    build is *not* reliably the one stamped in the dspkg name: for 15.6.0.0 WG
-    shipped `wows.ww_15.6.0.0.12866372_locale.dspkg` whose internal paths still
-    carried the previous build, so a filter built from the name matched zero of
-    the archive's 67 files. Unlike the client archive there is only ever one
-    texts tree here, so instead of guessing a build we read the real prefix out
-    of `--list` (cheap: range requests, no full download) and use it verbatim.
+    build is *not* the one stamped in the dspkg name: for 15.6.0.0 WG shipped
+    `wows.ww_15.6.0.0.12866372_locale.dspkg` holding two texts trees
+    (bin/12668706 — the 15.5 build — and bin/12830008), with 12866372 present
+    nowhere inside. A filter built from the name matched zero of the archive's
+    67 files.
+
+    So don't guess a build: read the prefixes that actually contain a
+    `global.mo` out of `--list` (cheap: range requests, no full download) and
+    take the highest-numbered one, which is the current patch's tree.
 
     `_catalog_build` is only a cache key — see `_content_build`.
     """
@@ -152,12 +159,12 @@ def _locale_texts_prefix(game_id: str, _catalog_build: int) -> str:
             f"could not find any `res/texts/<lang>/LC_MESSAGES/global.mo` in the "
             f"locale archive of {game_id}; its layout may have changed:\n{output}"
         )
-    if len(prefixes) > 1:
-        raise RuntimeError(
-            f"locale archive of {game_id} has more than one texts tree "
-            f"({sorted(prefixes)}); pick one explicitly"
-        )
-    return prefixes.pop()
+
+    def _build_of(prefix: str) -> int:
+        m = re.search(r"\bbin/(\d+)/", prefix)
+        return int(m.group(1)) if m else -1
+
+    return max(sorted(prefixes), key=_build_of)
 
 
 def extract_locales(version: Version, game_id: str, dest: Path) -> Path:
