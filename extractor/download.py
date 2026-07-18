@@ -128,18 +128,50 @@ def _content_build(game_id: str, resource: str, _catalog_build: int) -> int:
     return max(builds)
 
 
+_LOCALE_MO_RE = re.compile(r"(\S*res/texts)/[\w@-]+/LC_MESSAGES/global\.mo")
+
+
+@lru_cache(maxsize=None)
+def _locale_texts_prefix(game_id: str, _catalog_build: int) -> str:
+    """Find the in-archive dir holding the per-language text dirs.
+
+    The locale archive nests its texts under `bin/<build>/res/texts/`, but that
+    build is *not* reliably the one stamped in the dspkg name: for 15.6.0.0 WG
+    shipped `wows.ww_15.6.0.0.12866372_locale.dspkg` whose internal paths still
+    carried the previous build, so a filter built from the name matched zero of
+    the archive's 67 files. Unlike the client archive there is only ever one
+    texts tree here, so instead of guessing a build we read the real prefix out
+    of `--list` (cheap: range requests, no full download) and use it verbatim.
+
+    `_catalog_build` is only a cache key — see `_content_build`.
+    """
+    output = _run(["wgc-download", "extract", game_id, "locale", "--list"])
+    prefixes = {p.lstrip("/") for p in _LOCALE_MO_RE.findall(output)}
+    if not prefixes:
+        raise RuntimeError(
+            f"could not find any `res/texts/<lang>/LC_MESSAGES/global.mo` in the "
+            f"locale archive of {game_id}; its layout may have changed:\n{output}"
+        )
+    if len(prefixes) > 1:
+        raise RuntimeError(
+            f"locale archive of {game_id} has more than one texts tree "
+            f"({sorted(prefixes)}); pick one explicitly"
+        )
+    return prefixes.pop()
+
+
 def extract_locales(version: Version, game_id: str, dest: Path) -> Path:
     """Pull every `texts/<lang>/LC_MESSAGES/global.mo` from the locale dspkg.
 
     Returns the directory containing the per-language subfolders. ~30 MB."""
     dest.mkdir(parents=True, exist_ok=True)
-    build = _content_build(game_id, "locale", version.build)
+    prefix = _locale_texts_prefix(game_id, version.build)
     _run([
         "wgc-download", "extract", game_id, "locale",
-        "--filter", f"bin/{build}/res/texts/*/LC_MESSAGES/global.mo",
+        "--filter", f"{prefix}/*/LC_MESSAGES/global.mo",
         "-d", str(dest),
     ])
-    texts_dir = dest / "bin" / str(build) / "res" / "texts"
+    texts_dir = dest / prefix
     if not texts_dir.exists():
         raise RuntimeError(f"locale extraction produced no texts dir at {texts_dir}")
     return texts_dir
